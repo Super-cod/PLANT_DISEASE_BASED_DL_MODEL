@@ -76,10 +76,83 @@ def predict(image: Image.Image, model: torch.nn.Module, labels: list[str]) -> li
     return results
 
 
+def apply_custom_style() -> None:
+    st.markdown(
+        """
+        <style>
+            .stApp {
+                background: linear-gradient(135deg, #f7fbf1 0%, #e6f4ea 45%, #f4f9f5 100%);
+            }
+            .hero {
+                background: linear-gradient(120deg, #1b5e20 0%, #2e7d32 45%, #66bb6a 100%);
+                color: white;
+                padding: 1.25rem 1.5rem;
+                border-radius: 14px;
+                margin-bottom: 1rem;
+                box-shadow: 0 10px 30px rgba(27, 94, 32, 0.25);
+            }
+            .hero h1 {
+                margin: 0;
+                font-size: 1.8rem;
+            }
+            .hero p {
+                margin: 0.35rem 0 0;
+                font-size: 0.95rem;
+                opacity: 0.92;
+            }
+            .result-card {
+                border-radius: 12px;
+                padding: 0.9rem 1rem;
+                background: #ffffff;
+                border: 1px solid #d8eadb;
+                box-shadow: 0 6px 20px rgba(30, 60, 30, 0.08);
+                margin-bottom: 0.6rem;
+            }
+            .result-title {
+                font-weight: 700;
+                color: #1b5e20;
+                margin-bottom: 0.25rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def get_input_image() -> tuple[Image.Image | None, str | None]:
+    uploaded = None
+    captured = None
+    upload_tab, camera_tab = st.tabs(["Upload Image", "Click Photo"])
+
+    with upload_tab:
+        uploaded = st.file_uploader("Upload a leaf image", type=["jpg", "jpeg", "png"], key="upload_leaf")
+
+    with camera_tab:
+        captured = st.camera_input("Use your camera to click a leaf photo", key="camera_leaf")
+
+    chosen = captured if captured is not None else uploaded
+    if chosen is None:
+        return None, None
+
+    try:
+        return Image.open(chosen).convert("RGB"), "Camera photo" if captured is not None else "Uploaded image"
+    except Exception:
+        st.error("Could not read the image. Please try another file/photo.")
+        return None, None
+
+
 def main() -> None:
-    st.set_page_config(page_title="Plant Disease Detector")
-    st.title("Plant Disease Detector")
-    st.write("Upload a leaf image to predict the plant disease class.")
+    st.set_page_config(page_title="Plant Disease Detector", page_icon="🌿", layout="wide")
+    apply_custom_style()
+    st.markdown(
+        """
+        <div class="hero">
+            <h1>Plant Disease Detector</h1>
+            <p>Upload a leaf image or click a fresh photo to get disease prediction instantly.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     base_dir = pathlib.Path(__file__).resolve().parent
     model_path = base_dir / "model_updated.pth"
@@ -95,24 +168,35 @@ def main() -> None:
         st.stop()
 
     model = load_model(model_path, num_classes=len(labels))
-
-    uploaded = st.file_uploader("Choose a leaf image", type=["jpg", "jpeg", "png"])
-    if uploaded is None:
-        st.info("Upload an image to get a prediction.")
+    image, source_label = get_input_image()
+    if image is None:
+        st.info("Choose an option above to upload or click a photo.")
         return
 
-    image = Image.open(uploaded).convert("RGB")
-    st.image(image, caption="Uploaded image", use_column_width=True)
+    left_col, right_col = st.columns([1.2, 1], gap="large")
+    with left_col:
+        st.image(image, caption=source_label, use_container_width=True)
+    with right_col:
+        st.write("Click below to run prediction.")
 
-    if st.button("Predict"):
+    if st.button("Predict Disease", type="primary", use_container_width=True):
         results = predict(image, model, labels)
         best_label, best_score = results[0]
-        st.subheader("Prediction")
-        st.write(f"**{best_label}** ({best_score * 100:.2f}%)")
+        st.subheader("Prediction Result")
+        st.markdown(
+            f"""
+            <div class="result-card">
+                <div class="result-title">{best_label}</div>
+                <div>Confidence: {best_score * 100:.2f}%</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         st.subheader("Top results")
         for label, score in results:
             st.write(f"{label}: {score * 100:.2f}%")
+            st.progress(min(max(float(score), 0.0), 1.0))
 
 
 if __name__ == "__main__":

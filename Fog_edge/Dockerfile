@@ -4,10 +4,11 @@ WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --upgrade pip
-RUN pip install --default-timeout=1000 --retries 50 --index-url https://download.pytorch.org/whl/cpu torch torchvision
+RUN pip install --default-timeout=1000 --retries 50 --resume-retries 100 --index-url https://download.pytorch.org/whl/cpu torch torchvision
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY app.py labels.txt model_updated.pth /app/
+COPY app.py labels.txt /app/
+COPY model_updated.pth /app/
 
 EXPOSE 8501
 
